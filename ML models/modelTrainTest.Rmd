@@ -1,0 +1,446 @@
+
+# Model training and testing
+## Contains performance comparisons between various ML models.
+
+
+```{r}
+library(tidyverse)
+library(doMC)
+library(caret)
+library(pROC)
+library(FSelector)
+library(corrplot)
+library(e1071)
+library(mlbench)
+library(reshape2)
+```
+
+```{r}
+registerDoMC(cores = 4)
+SEED <- 12344322
+```
+
+
+```{r}
+dset <- read_csv("SCAFFOLD_FINAL_TRIMMED_TRAINER.csv", col_names = T)
+```
+
+
+```{r}
+head(dset)
+```
+
+```{r}
+dim(dset)
+```
+
+```{r}
+table(dset$Class)
+```
+
+```{r}
+nearZeroVar(dset[,-c(15,16)]) # Check for predictors with zero variance
+```
+
+```{r}
+# Overview of correlations within the dataset
+cor(dset[,-c(15, 16)], method="pearson", use="complete.obs") %>% corrplot(method="color", order="hclust", tl.cex=0.5)
+```
+
+```{r}
+# Dataset correlaion values
+dset_chars <- dset[, c(15,16)]
+dset <- dset[, -c(15,16)]
+dset <- cbind(dset_chars[, -1], dset)
+cormat <- cor(dset[,-1], method="pearson", use="complete.obs")
+```
+
+
+```{r}
+head(cormat)
+```
+
+```{r}
+abscormat <- cormat %>% abs
+head(abscormat)
+```
+
+#### Remove the minimum number of predictors to achieve all pairwise pearsons correlation to be *_below_*  the cutoff 0.75
+#### Setting a high threshold to account for the relatively small number of observations
+
+```{r}
+reduced_dset <- dset # same thing, just did this else had to change everything
+head(reduced_dset)
+```
+
+```{r}
+dim(reduced_dset)
+```
+
+```{r}
+# Correlation matrix (absolute) after treatment contaning reduced number of features
+cor(reduced_dset[,-1],method="pearson",use="complete.obs") %>% abs %>% corrplot(method="color",order="hclust", tl.cex=0.5)
+```
+
+```{r}
+# Dump out dataset stripped off the highly correlated features
+write_csv(reduced_dset, path="REDUCED-DATASET.csv")
+```
+
+## Model training
+
+
+```{r}
+set.seed(SEED)
+ig <- information.gain(Class ~ ., reduced_dset)
+ig
+```
+
+```{r}
+set.seed(SEED)
+rfi <- random.forest.importance(Class ~ ., reduced_dset)
+rfi
+```
+
+
+```{r}
+set.seed(SEED)
+cutoff.k(ig, k=6) # Top 6 predictors according to highest information gain
+```
+
+```{r}
+set.seed(SEED)
+cutoff.k(rfi, k=5) # Top 6 predictors according to highest random forest importance
+```
+
+```{r}
+# feature selected dataset
+```
+
+
+```{r}
+dataset <- reduced_dset[,c("Class", "Largest.Chain",
+                    "Aromatic.Atoms.Count", "Vertex.adjacency.information.magnitude", "XLogP",
+                "MBAMass1")]
+```
+
+
+```{r}
+dim(dataset)
+```
+
+```{r}
+control <- trainControl(method="repeatedcv", number=10, repeats=5,summaryFunction=twoClassSummary,
+                     classProbs=T,
+                     savePredictions = T)
+```
+
+
+```{r}
+set.seed(SEED)
+modelGlm <- train(Class~., data=dataset, method="glm", trControl=control, preProcess=c("center", "scale"))
+set.seed(SEED)
+modelKnn <- train(Class~., data=dataset, method="knn", trControl=control, preProcess=c("center", "scale"))
+set.seed(SEED)
+modelSvm <- train(Class~., data=dataset, method="svmRadial", trControl=control, preProcess=c("center", "scale"))
+set.seed(SEED)
+modelRf <- train(Class~., data=dataset, method="rf", trControl=control, preProcess=c("center", "scale"))
+```
+
+```{r}
+results <- resamples(list(GLM= modelGlm, kNN=modelKnn, RF=modelRf, SVM=modelSvm))
+```
+
+
+```{r}
+summary(results)
+```
+
+
+
+```{r}
+bwplot(results)
+```
+
+```{r}
+dotplot(results)
+```
+
+```{r}
+# Train
+```
+
+
+```{r}
+# kNN
+```
+
+
+```{r}
+model.ctrl <- trainControl(method="repeatedcv", number=10, repeats=5,summaryFunction=twoClassSummary,
+                     classProbs=T,
+                     savePredictions = T)
+```
+
+
+```{r}
+knn.tunegrid <- expand.grid(k=seq(1,500,2)) # hyperparameter grid search
+```
+
+
+```{r}
+set.seed(SEED)
+knn.fit <- train(Class ~ ., data = dataset, method = "knn", preProcess=c("center", "scale"),trControl=model.ctrl, tuneLength = 10, tuneGrid = knn.tunegrid)
+```
+
+```{r}
+knn.fit
+```
+
+```{r}
+plot(knn.fit, main="kNN hyperparameter optimization")
+```
+
+```{r}
+knn.fit$finalModel
+```
+
+
+```{r}
+knn.fit$results %>% head
+```
+
+```{r}
+# Save the kNN model
+saveRDS(knn.fit, file = "KNN-S.rds")
+```
+
+
+```{r}
+# Train
+# Logistic regression
+```
+
+
+```{r}
+set.seed(SEED)
+glm.fit <- train(Class ~ ., data = dataset, method = "glm", preProcess=c("center", "scale"),trControl=model.ctrl, tuneLength = 10)
+```
+
+```{r}
+glm.fit
+```
+
+
+```{r}
+glm.fit$results
+```
+
+
+```{r}
+glm.fit$finalModel
+```
+
+
+```{r}
+# Save the GLM model
+saveRDS(glm.fit, file = "GLM-S.rds")
+```
+
+
+```{r}
+# Train
+# SVM
+```
+
+
+```{r}
+C <- c(2^-5,2^-3,2^-1,2^0,2^1,2^3,2^5,2^7,2^9,2^11,2^13,2^15)
+sigma <- c(2^5,2^3,2^1,2^0,2^-1,2^-3,2^-5,2^-7,2^-9,2^-11,2^-13,2^-15)
+svm.tunegrid <- expand.grid(sigma = sigma, C = C) # hyperparameter grid search
+```
+
+
+```{r}
+set.seed(SEED)
+svm.fit <- train(Class ~ ., data = dataset, method = "svmRadial", preProcess=c("center", "scale"),trControl=model.ctrl, tuneLength = 10, tuneGrid = svm.tunegrid)
+```
+
+
+```{r}
+svm.fit
+```
+
+
+```{r}
+plot(svm.fit)
+svm.fit$finalModel
+```
+
+
+```{r}
+# Save the GLM model
+saveRDS(svm.fit, file = "SVM-S.rds")
+```
+
+
+```{r}
+# Train random forest
+```
+
+
+```{r}
+mtry <- sqrt(ncol(dataset[,-1])) + seq(-1,100,1)
+rf.tunegrid <- expand.grid(.mtry=mtry) # hyperparameter grid search
+```
+
+
+```{r}
+set.seed(SEED)
+rf.fit <- train(Class ~ ., data = dataset, method = "rf", preProcess=c("center", "scale"),trControl=model.ctrl, tuneLength = 10, tuneGrid = rf.tunegrid)
+```
+
+```{r}
+rf.fit %>% plot(main="RandomForest: Hyperparameter optimization")
+```
+
+
+```{r}
+rf.fit$finalModel
+```
+
+
+```{r}
+# Save the RF model
+saveRDS(rf.fit, file = "RF-S.rds")
+```
+
+
+```{r}
+attributes(knn.fit)
+```
+
+
+```{r}
+rf.fit$results %>% head
+r <- rf.fit$results
+```
+
+```{r}
+g <- ggplot(r, aes(x=mtry, y=ROC))
+g + geom_line(colour="#048C9B") + geom_point(size=2, colour="red") + geom_errorbar(aes(ymin=ROC-ROCSD, ymax=ROC+ROCSD, width=0.2)) +
+labs(title = "RandomForest parameter tuning")
+```
+
+```{r}
+knn.fit$results %>% head
+a <- knn.fit$results
+```
+
+
+```{r}
+g <- ggplot(knn.fit$results, aes(x=k, y=ROC))
+g + geom_line() + geom_point(size=2, colour="red") + geom_errorbar(aes(ymin=ROC-ROCSD, ymax=ROC+ROCSD, width=0.2)) +
+geom_vline(xintercept = knn.fit$results[which.max(knn.fit$results$ROC),]$k) +
+geom_hline(yintercept = max(knn.fit$results$ROC))+
+labs(title = "kNN parameter tuning")
+```
+
+```{r}
+attributes(glm.fit)
+```
+
+
+```{r}
+svm.fit$results %>% head
+```
+
+
+```{r}
+s <- svm.fit$results[which.max(svm.fit$results$ROC),]
+svm <- s[,-(c(1,2))]
+svm # Support Vector Machine
+```
+
+```{r}
+g <- glm.fit$results
+glm <- g[, -1]
+glm # Logistic Regression
+```
+
+
+```{r}
+k <- knn.fit$results[which.max(knn.fit$results$ROC),]
+knn <- k[, -1]
+knn # k-Nearest Neighbors
+```
+
+```{r}
+r <- rf.fit$results[which.max(rf.fit$results$ROC),]
+raf <- r[, -1]
+raf # Random Forest
+```
+
+```{r}
+Algorithm <- c("SVM", "GLM", "kNN", "RF")
+model_res <- rbind(svm,knn,glm, raf)
+model_res <- cbind(Algorithm, model_res)
+model_res
+```
+
+```{r}
+g <- ggplot(model_res, aes(x=Algorithm, y=ROC))
+g + geom_line(colour="#048C9B") + geom_point(size=4, colour="red") + geom_errorbar(aes(ymin=ROC-ROCSD, ymax=ROC+ROCSD, width=0.2)) +
+labs(title = "Model performance (Area under ROC curve)",
+    subtitle="10-fold CV, repeated 10 times",
+    ylab="Area under ROC curve")
+```
+
+```{r}
+g <- ggplot(model_res, aes(x=Algorithm, y=Spec))
+g + geom_line(colour="#048C9B") + geom_point(size=4, colour="red") + geom_errorbar(aes(ymin=Spec-SpecSD, ymax=Spec+SpecSD, width=0.2)) +
+labs(title = "Model performance (Specificity)",
+    subtitle="10-fold CV, repeated 10 times",
+    ylab="Specificity")
+```
+
+```{r}
+g <- ggplot(model_res, aes(x=Algorithm, y=Sens))
+g + geom_line(colour="#048C9B") + geom_point(size=4, colour="red") + geom_errorbar(aes(ymin=Sens-SensSD, ymax=Sens+SensSD, width=0.2)) +
+labs(title = "Model performance (Sensitivity)",
+    subtitle="10-fold CV, repeated 10 times",
+    ylab="Area under ROC curve")
+```
+
+```{r}
+model_res
+```
+
+
+```{r}
+mdfA <- model_res[,-c(5,6,7)]
+mdfB <- model_res[,c(5,6,7)]
+mA <- melt(mdfA)
+mB <- melt(mdfB)
+colnames(mA) <- c("Algorithm", "Metric", "Mean")
+colnames(mB) <- c("Metric", "SD")
+SD <- mB[,c("SD")] %>% as.data.frame
+mA <- cbind(mA, SD)
+colnames(mA)[4] <- "SD"
+mA
+```
+
+
+```{r}
+pos <- position_dodge(width=0.7)
+ggplot(mA, aes(x=Metric, y=Mean, colour=Algorithm)) + geom_point(position=pos, size=4) + geom_errorbar(position=pos, aes(ymin=Mean-SD, ymax=Mean+SD, width=0.2, colour=Algorithm)) +
+labs(
+    title="Resampling results",
+    subtitle="10-fold cross-validation, repeated 10 times (bars represend standard deviation)"
+)
+```
+
+
+```{r}
+sessionInfo()
+```

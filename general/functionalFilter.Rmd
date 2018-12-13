@@ -1,0 +1,147 @@
+```{r}
+library(tidyverse)
+library(ChemmineR)
+library(ChemmineOB)
+library(scatterplot3d)
+library(fmcsR)
+```
+
+### SMARTS substructure search of reactive functional groups
+### Walters & Murcko (2002) (REOS SMARTS filter)
+
+```{r}
+medchem <- read.SDFset("/home/bioinfo/Documents/Somdeb/MedChem/sdfs/complete/medchem_all.sdf")
+```
+
+```{r}
+validID <- validSDF(medchem)
+```
+
+```{r}
+medvalid <- medchem[validID]
+```
+
+```{r}
+class(medvalid)
+```
+```{r}
+smartsSearchOB(medvalid, "S(=O)(=O)[F,Cl,Br,I]", uniqueMatches = FALSE)
+```
+```{r}
+smartsSearchOB(medvalid, "[N;10,11;$(N(=O)~[O;H0;20,21])]", uniqueMatches = FALSE)
+```
+
+```{r}
+smartsSearchOB(medvalid, "[HC]=O", uniqueMatches = FALSE)
+```
+
+```{r}
+smartsSearchOB(medvalid, "[Cl,Br,I][CH2]", uniqueMatches = FALSE)
+```
+
+```{r}
+smartsSearchOB(medvalid, "C1[O,N]C1", uniqueMatches = FALSE)
+```
+
+```{r}
+smartsSearchOB(medvalid, "[#6]OP(=O)O[#6]", uniqueMatches = FALSE)
+```
+
+```{r}
+smartsSearchOB(medvalid, "[CH2][CH2][CH2][CH2][CH2][CH2][CH2][CH2]", uniqueMatches = FALSE)
+```
+
+```{r}
+smartsSearchOB(medvalid, "OO", uniqueMatches = FALSE)
+```
+
+```{r}
+smartsSearchOB(medvalid, "C(=O)C(=O)", uniqueMatches = FALSE)
+```
+
+```{r}
+smartsSearchOB(medvalid, "C(=O)[Cl,Br,I]", uniqueMatches = FALSE)
+```
+## ALL medchem molecules have passed the functional group filters
+```{r}
+
+```
+
+## Scaffold hopped molecules
+
+```{r}
+scaf <- read.SDFset("/home/bioinfo/Documents/Somdeb/SAScore/SAScore/sascore_le_tricc.sdf")
+```
+
+```{r}
+validid <- validSDF(scaf)
+```
+
+```{r}
+scafvalid <- scaf[validid]
+```
+
+```{r}
+class(scafvalid)
+```
+
+Faliures noted in c1 and i1
+
+```{r}
+a1 <- smartsSearchOB(scafvalid, "S(=O)(=O)[F,Cl,Br,I]", uniqueMatches = FALSE)
+```
+```{r}
+b1 <- smartsSearchOB(scafvalid, "[N;10,11;$(N(=O)~[O;H0;20,21])]", uniqueMatches = FALSE)
+```
+```{r}
+# There were 30 failures for this
+c1 <- smartsSearchOB(scafvalid, "[HC]=O", uniqueMatches = FALSE)
+```
+```{r}
+d1 <- smartsSearchOB(scafvalid, "[Cl,Br,I][CH2]", uniqueMatches = FALSE)
+```
+```{r}
+e1 <- smartsSearchOB(scafvalid, "C1[O,N]C1", uniqueMatches = FALSE)
+```
+```{r}
+f1 <- smartsSearchOB(scafvalid, "[#6]OP(=O)O[#6]", uniqueMatches = FALSE)
+```
+```{r}
+g1 <- smartsSearchOB(scafvalid, "[CH2][CH2][CH2][CH2][CH2][CH2][CH2][CH2]", uniqueMatches = FALSE)
+```
+```{r}
+h1 <- smartsSearchOB(scafvalid, "OO", uniqueMatches = FALSE)
+```
+```{r}
+# There were 3 failures for this
+i1 <- smartsSearchOB(scafvalid, "C(=O)C(=O)", uniqueMatches = FALSE)
+```
+```{r}
+j1 <-smartsSearchOB(scafvalid, "C(=O)[Cl,Br,I]", uniqueMatches = FALSE)
+```
+
+
+#### Filter out compounds which failed SMARTS search
+Use table(c1) or table(i1) to find out which ones
+
+```{r}
+c1_logical <- ifelse(c1=="0",TRUE,FALSE)
+C1PASS <-scafvalid[c1_logical]
+cid(C1PASS) <- makeUnique(cid(C1PASS))
+```
+```{r}
+# C1PASS molecules (without aldehydes) which have passed the
+# 1,2-Dicarbonyl group filter
+i2 <- smartsSearchOB(C1PASS, "C(=O)C(=O)", uniqueMatches = FALSE)
+i2_logical <- ifelse(i2=="0",TRUE,FALSE)
+SCAFPASS <- C1PASS[i2_logical]
+```
+
+## Scaffold hopped molecules which have passed the Spark filters (1000->806),
+## the synthetic accessibility < triacsinc (806->508), aldehyde filters
+## (506->478), and 1,2-Dicarbonyl filters (478->476) = SCAFPASS
+
+```{r}
+write.SDF(SCAFPASS, file="/home/bioinfo/Documents/Somdeb/SAScore/SAScore/scaffoldhop_allfilterpass-476.sdf")
+```
+
