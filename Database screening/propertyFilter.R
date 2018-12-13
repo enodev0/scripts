@@ -1,5 +1,5 @@
-# Filter a database of molecules based on the mean and SD of their descriptors.
-#
+# Filter a database of molecules based on the mean and SD of their descriptors
+# compared to those of a set of known analogs.
 #
 #
 #
@@ -49,7 +49,7 @@ skewAnalogs
 
 skewCDK
 
-# The actual filter function to screen molecules from ChEMBL and DrugBank based on molecular properties
+# Filter function to screen molecules from ChEMBL and DrugBank based on molecular properties
 
 threshold_filter <- function(toBeFiltered, suppliesUandS, Z=1) { # dataframe without nominal columns
 
