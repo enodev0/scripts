@@ -12,6 +12,10 @@ Python 3.6.4 :: Anaconda, Inc.
 AutoDock Vina 1.1.2 (May 11, 2011)
 Open Babel 2.3.2 -- Dec 18 2015
 awk, tail, cat
+
+
+Copyright (C) 2018, Somdeb Chatterjee
+LICENSE: MIT
 """
 
 import datetime as dt
@@ -26,12 +30,13 @@ class Screen:
     """
 
     def __init__(self,
-                 resfile="ScreeningResults",
-                 sampfile="deltaGsamplingData",
-                 repeats=2,
+                 resfile="affinitites_with_stats",
+                 sampfile="affinities_only",
+                 repeats=1,
                  config="conf.txt",
                  ligand_directory="Ligands/",
                  output_directory="Results/",
+                 repeats_directory="Replications/",
                  minimization=False,
                  exhaustiveness=8):
 
@@ -41,6 +46,7 @@ class Screen:
             dt.date.today()) + ".csv"
         self.ldir = ligand_directory
         self.rdir = output_directory
+        self.repdir = repeats_directory
         self.minimize = minimization
         self.vinaconf = config
         self.rigor = exhaustiveness
@@ -51,7 +57,7 @@ class Screen:
         self.bestbinders = [
         ]  # holds the names of the top five best binding ligands
 
-        header_tmp = ["Ligands", "mean-dG", "stdev-dG", "#samples"]
+        header_tmp = ["Ligand", "mean-dG", "stdev-dG", "#samples"]
         self.stats.append(header_tmp.copy())
         del header_tmp[:]
 
@@ -71,7 +77,7 @@ class Screen:
             )
             raise SystemExit()
 
-    def convert_ligands(self):
+    def preprocess_ligands(self):
         print("Converting ligands, assuming structures are already in 3D\n\n")
         for file in os.listdir(self.ldir):
             if file.endswith(".sdf"):
@@ -104,13 +110,13 @@ class Screen:
                 print("Could not find ligand SDFs, exiting ...\n\n")
                 raise SystemExit()
 
-    def start_screening(self, mode="SINGLE_PASS"):
+    def start_virtual_screen(self, mode="SINGLE_PASS"):
 
         print("\nStarting virtual screening run ...\n\n")
 
         for file in os.listdir(self.ldir):
 
-            if mode == "REPLICATE" and str(
+            if mode == "REPLICATED" and str(
                     os.path.splitext(file)
                 [0]) in self.bestbinders[0] and file.endswith(".pdbqt"):
 
@@ -126,8 +132,8 @@ class Screen:
                             os.path.splitext(file)[0] + "/" + str(rep) + "/" +
                             "out" + "-pass-" + str(rep) + "-" + file +
                             " --log " + self.rdir + os.path.splitext(file)[0] +
-                            "/" + str(rep) + "/" + "log-" + "pass-" +
-                            str(rep) + "-" + os.path.splitext(file)[0] +
+                            "/" + str(rep) + "/" + "log_" + "pass_" +
+                            str(rep) + "_" + os.path.splitext(file)[0] +
                             ".txt" + " --exhaustiveness " + str(self.rigor)
                         ],
                         shell=True)
@@ -146,8 +152,8 @@ class Screen:
                             os.path.splitext(file)[0] + "/" + str(rep) + "/" +
                             "out" + "-pass-" + str(rep) + "-" + file +
                             " --log " + self.rdir + os.path.splitext(file)[0] +
-                            "/" + str(rep) + "/" + "log-" + "pass-" +
-                            str(rep) + "-" + os.path.splitext(file)[0] +
+                            "/" + str(rep) + "/" + "log_" + "pass_" +
+                            str(rep) + "_" + os.path.splitext(file)[0] +
                             ".txt" + " --exhaustiveness " + str(self.rigor)
                         ],
                         shell=True)
@@ -155,7 +161,7 @@ class Screen:
             else:
                 continue
 
-    def process_results(self, mode="SINGLE_PASS"):
+    def extract_binding_affinities(self, mode="SINGLE_PASS"):
         print("\nProcessing results ...\n\n")
 
         chunks = []  # list containing mean and SD of binding energy / ligand
@@ -174,8 +180,8 @@ class Screen:
                 energies.append(basename)
 
                 for rep in range(self.repeats):  # from 0 to self.repeats-1
-                    logname = "log-" + "pass-" + str(
-                        rep) + "-" + os.path.splitext(file)[0] + ".txt"
+                    logname = "log_" + "pass_" + str(
+                        rep) + "_" + os.path.splitext(file)[0] + ".txt"
                     target = pathname + "/" + str(rep) + "/" + logname
                     # WARNING the below command will fail if vina does not generate 9 models
                     # because it expects the file to have a certain number of lines, which can
@@ -206,7 +212,7 @@ class Screen:
                 self.sampling_stats.append(energies.copy())
                 del energies[:]
 
-            elif mode == "REPLICATE" and str(
+            elif mode == "REPLICATED" and str(
                     os.path.splitext(file)
                 [0]) in self.bestbinders[0] and file.endswith(".pdbqt"):
 
@@ -216,8 +222,8 @@ class Screen:
                 energies.append(basename)
 
                 for rep in range(self.repeats):  # from 0 to self.repeats-1
-                    logname = "log-" + "pass-" + str(
-                        rep) + "-" + os.path.splitext(file)[0] + ".txt"
+                    logname = "log_" + "pass_" + str(
+                        rep) + "_" + os.path.splitext(file)[0] + ".txt"
                     target = pathname + "/" + str(rep) + "/" + logname
                     cmdline = "tail -n+26 " + target + " | awk '/-/ { print $2 }' | awk 'FNR==2'"
 
@@ -248,7 +254,7 @@ class Screen:
             else:
                 continue
 
-    def print_sampling_data(self):
+    def print_only_affinities(self):
         print("\nPrinting sampling data ...\n\n")
 
         sg = open(self.sampfile, "w")
@@ -267,7 +273,7 @@ class Screen:
 
         sg.close()
 
-    def print_results(self):
+    def print_comprehensive_stats(self):
         print("\nPrinting results ...\n\n")
 
         sr = open(self.resfile, "w")
@@ -286,7 +292,7 @@ class Screen:
 
         sr.close()
 
-    def extract_bestbinder(self, num=5):
+    def determine_bestbinders(self, num=5):
         print("\nSorting results ... \n\n")
 
         ligand = []  # holds the names of all the ligands screened
@@ -302,21 +308,21 @@ class Screen:
         self.bestbinders.append(ligand[:num])  # names of top 5 best binders
 
     def verify_bestbinders(self,
-                           outdir="ReplicationResults/",
+                          # outdir=self.repdir,
                            repeats=5,
                            exhaustiveness=20,
-                           resfile="ReplicationStats",
-                           sampfile="RawReplicationData"):
+                           resfile="replication_affinities_with_stats",
+                           sampfile="replication_affinities_only"):
 
         print("\nVerifying best binders ...\n\n")
 
-        self.rdir = outdir
+        self.rdir = self.repdir
         self.repeats = repeats
         self.rigor = exhaustiveness
 
-        self.sampfile = sampfile + "-" + str(
-            repeats) + "-repeats-" + "-" + str(dt.date.today()) + ".csv"
-        self.resfile = resfile + "-" + str(repeats) + "-repeats-" + "-" + str(
+        self.sampfile = sampfile + "_" + str(
+            repeats) + "_repeats_" + str(dt.date.today()) + ".csv"
+        self.resfile = resfile + "_" + str(repeats) + "_repeats_" + str(
             dt.date.today()) + ".csv"
 
         del self.stats[:]
@@ -326,21 +332,31 @@ class Screen:
         del header_tmp[:]
         del self.sampling_stats[:]
 
-        self.start_screening(mode="REPLICATE")
-        self.process_results(mode="REPLICATE")
-        self.print_results()
-        self.print_sampling_data()
+        self.start_virtual_screen(mode="REPLICATED")
+        self.extract_binding_affinities(mode="REPLICATED")
+        self.print_only_affinities()
+        self.print_comprehensive_stats()
 
-    def split_and_convert_results(self):
-        print("Splitting result files ... \n\n")
 
-        for dirs in os.listdir("ReplicationResults/"):
-            for dirs_1 in os.listdir("ReplicationResults/" + dirs):
+    def split_and_convert_pdbqts(self, mode="SINGLE_PASS"):
+        print("Splitting result files and (PDBQT -->  SDF) ... \n\n")
+
+        target_dir = ""
+
+        if mode == "SINGLE_PASS":
+            target_dir = self.rdir
+        elif mode == "REPLICATED":
+            target_dir = self.repdir
+        else:
+            target_dir = self.rdir
+
+        for dirs in os.listdir(target_dir):
+            for dirs_1 in os.listdir(target_dir + dirs):
                 for files in os.listdir(
-                        "ReplicationResults/" + dirs + "/" + dirs_1 + "/"):
+                        target_dir + dirs + "/" + dirs_1 + "/"):
                     if files.endswith(".pdbqt"):
                         print("\n\nSplitting file: " + files + "\n\n")
-                        target_path = "ReplicationResults/" + dirs + "/" + dirs_1 + "/"
+                        target_path = target_dir + dirs + "/" + dirs_1 + "/"
                         sp.call(
                             ["vina_split --input " + target_path + files],
                             shell=True)
@@ -348,7 +364,7 @@ class Screen:
                             ["rm " + target_path + files],
                             shell=True)  # delete the concatenated file
                         # call openbabel for conversion
-                        for files in os.listdir("ReplicationResults/" + dirs +
+                        for files in os.listdir(target_dir + dirs +
                                                 "/" + dirs_1 + "/"):
                             if files.endswith(".pdbqt"):
                                 # extract binding info from PDBQT
@@ -386,32 +402,35 @@ class Screen:
                                         "_Split.sdf"
                                     ],
                                     shell=True)
-#    def count_lines(self):
-#        file = len([f for f in os.walk("Ligands/").next()[2] if f[-4:] == ".sdf"])
-#        print(file)
 
 
 def main():
 
     s = Screen(
-        repeats=1,
-        resfile="screenres-isoform1",
-        sampfile="gsampfile-isoform1",
+        resfile="affinities_with_stats",
+        sampfile="affinities",
         config="conf.txt",
         ligand_directory="Ligands/",
         output_directory="Results/",
+        repeats_directory="Replications/",
         minimization=False,
-        exhaustiveness=10)
+        exhaustiveness=8)
 
-    s.convert_ligands()
-    s.start_screening()
-    s.process_results()
-    s.extract_bestbinder(num=5)
-    s.print_sampling_data()
-    s.print_results()
-    s.verify_bestbinders(repeats=5, exhaustiveness=25)
-    s.split_and_convert_results()
+   
+    s.preprocess_ligands()
+    s.start_virtual_screen()
+    s.extract_binding_affinities()
+    s.determine_bestbinders(num=2)
 
+    s.print_only_affinities()
+    s.print_comprehensive_stats()
+    s.split_and_convert_pdbqts(mode="SINGLE_PASS")
+    
+    s.verify_bestbinders(repeats=3, exhaustiveness=8)
+    s.split_and_convert_pdbqts(mode="REPLICATED")
+
+
+    print("\n\n\nAll done!\n\n")
     raise SystemExit()
 
 
