@@ -254,43 +254,33 @@ class Screen:
             else:
                 continue
 
-    def print_only_affinities(self):
-        print("\nPrinting sampling data ...\n\n")
 
-        sg = open(self.sampfile, "w")
-        i = 0
-        j = len(self.sampling_stats[0])
-        for chunk in self.sampling_stats:
-            for element in chunk:
-                i += 1
-                sg.write(str(element))
-                if i != j:
-                    sg.write(", ")
-                else:
-                    continue
-            i = 0
-            sg.write("\n")
-
-        sg.close()
-
-    def print_comprehensive_stats(self):
+    def print_results(self, mode="SIMPLE"):
         print("\nPrinting results ...\n\n")
 
-        sr = open(self.resfile, "w")
+        if mode == "SIMPLE":
+            outfile = self.sampfile
+            datasrc = self.sampling_stats
+        elif mode == "WITH_STATS":
+            outfile = self.resfile
+            datasrc = self.stats
+
+        file = open(outfile, "w")
         i = 0
-        j = len(self.stats[0])
-        for chunk in self.stats:
+        j = len(datasrc[0])
+        for chunk in datasrc:
             for element in chunk:
                 i += 1
-                sr.write(str(element))
+                file.write(str(element))
                 if i != j:
-                    sr.write(", ")
+                    file.write(", ")
                 else:
                     continue
             i = 0
-            sr.write("\n")
+            file.write("\n")
 
-        sr.close()
+        file.close()
+
 
     def determine_bestbinders(self, num=5):
         print("\nSorting results ... \n\n")
@@ -334,8 +324,8 @@ class Screen:
 
         self.start_virtual_screen(mode="REPLICATED")
         self.extract_binding_affinities(mode="REPLICATED")
-        self.print_only_affinities()
-        self.print_comprehensive_stats()
+        self.print_results(mode="SIMPLE")
+        self.print_results(mode="WITH_STATS")
 
 
     def split_and_convert_pdbqts(self, mode="SINGLE_PASS"):
@@ -416,17 +406,17 @@ def main():
         minimization=False,
         exhaustiveness=8)
 
-   
+
     s.preprocess_ligands()
     s.start_virtual_screen()
     s.extract_binding_affinities()
-    s.determine_bestbinders(num=2)
+    s.determine_bestbinders(num=1)
 
-    s.print_only_affinities()
-    s.print_comprehensive_stats()
+    s.print_results(mode="SIMPLE")
+    s.print_results(mode="WITH_STATS")
     s.split_and_convert_pdbqts(mode="SINGLE_PASS")
-    
-    s.verify_bestbinders(repeats=3, exhaustiveness=8)
+
+    s.verify_bestbinders(repeats=3, exhaustiveness=10)
     s.split_and_convert_pdbqts(mode="REPLICATED")
 
 
