@@ -1,3 +1,3 @@
 ### Virtual screening scripts
 
-Scripts to automate virtual screening with AutoDock Vina, formatting and sorting of results, calculation of statistics, and visualization of results.
+Scripts to automate AutoDock Vina based virtual screening sessions, with formatting and sorting of results, calculation of statistics, and visualization.

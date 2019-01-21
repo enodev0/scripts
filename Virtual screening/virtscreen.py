@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+
+
 """
 Automated virtual screening & analysis with Autodock Vina
 """
@@ -199,7 +201,7 @@ class Screen:
 
 
     def extract_binding_affinities(self, mode="SINGLE_PASS"):
-        print("\nExracting affinities ...\n\n")
+        print("\nExtracting affinities ...\n\n")
 
         for filename in os.listdir(self.ligand_dir):
 
